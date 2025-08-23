@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Kushal Chatbot</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            background: #eaf0f7;
+            margin: 0;
+            font-family: 'Segoe UI', 'Roboto', Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .main-container {
+            width: 420px;
+            height: 680px;
+            background: #fff;
+            border-radius: 22px;
+            box-shadow: 0 6px 32px rgba(30,58,138,0.11), 0 1.5px 3px rgba(60,72,180,0.10);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+        .header {
+            background: linear-gradient(90deg, #0052d4 0%, #4364f7 55%, #6fb1fc 100%);
+            color: #f6f7fb;
+            padding: 22px 22px 18px 22px;
+            font-size: 23px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .header-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #f7fafc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 19px;
+            color: #0052d4;
+            font-weight: 700;
+        }
+        .chat-messages {
+            flex: 1;
+            padding: 22px 18px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            background: #f3f6fa;
+        }
+        .message-row {
+            display: flex;
+            align-items: flex-end;
+            margin-bottom: 12px;
+        }
+        .message-row.user {
+            flex-direction: row-reverse;
+        }
+        .user-label, .bot-label {
+            font-size: 12px;
+            font-weight: 500;
+            margin-bottom: 3px;
+        }
+        .user-label {
+            color: #1a56d8;
+            text-align: right;
+            margin-right: 8px;
+        }
+        .bot-label {
+            color: #12736a;
+            text-align: left;
+            margin-left: 8px;
+        }
+        .bubble {
+            max-width: 76%;
+            padding: 13px 19px;
+            border-radius: 18px;
+            font-size: 16px;
+            word-break: break-word;
+            line-height: 1.5;
+            box-shadow: 0 2px 7px rgba(30,56,123,0.07);
+        }
+        .bot .bubble {
+            background: #eafaf4;
+            color: #20786a;
+            border-bottom-left-radius: 7px;
+        }
+        .user .bubble {
+            background: #cde3fd;
+            color: #1a384f;
+            border-bottom-right-radius: 7px;
+        }
+        .chat-input-area {
+            display: flex;
+            padding: 14px;
+            background: #f8fafd;
+            border-top: 1.5px solid #e3eaf3;
+        }
+        #userInput {
+            flex: 1;
+            padding: 12px 18px;
+            border: 1.2px solid #c7d8ea;
+            border-radius: 20px;
+            font-size: 16px;
+            outline: none;
+        }
+        #sendBtn {
+            margin-left: 8px;
+            padding: 12px 22px;
+            background: #2485fa;
+            color: #fff;
+            border: none;
+            border-radius: 20px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.18s;
+        }
+        #sendBtn:active {
+            background: #0064b2;
+        }
+        .typing {
+            font-style: italic;
+            color: #b7b7b7;
+            margin: 2px 0 2px 17px;
+            font-size: 14px;
+        }
+        /* Watermark branding */
+        .watermark {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 9px;
+            text-align: center;
+            font-size: 13px;
+            color: #adb5bd;
+            pointer-events: none;
+            opacity: 0.75;
+            z-index: 2;
+            letter-spacing: 2px;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            user-select: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="header">
+            <div class="header-avatar">K</div>
+            Kushal Support AI
+        </div>
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="chat-input-area">
+            <input type="text" id="userInput" placeholder="Type your message..." autocomplete="off"/>
+            <button id="sendBtn">Send</button>
+        </div>
+        <div class="watermark">Powered by Kushal</div>
+    </div>
+    <script>
+        const chatMessages = document.getElementById('chatMessages');
+        const userInput = document.getElementById('userInput');
+        const sendBtn = document.getElementById('sendBtn');
+
+        function createMsgRow(text, sender) {
+            const row = document.createElement('div');
+            row.className = 'message-row ' + sender;
+
+            const meta = document.createElement('div');
+            meta.className = sender === 'user' ? 'user-label' : 'bot-label';
+            meta.innerText = sender === 'user' ? 'You' : 'Kushal';
+
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            bubble.innerText = text;
+
+            if(sender === 'user') {
+                row.appendChild(bubble);
+                row.appendChild(meta);
+            } else {
+                row.appendChild(meta);
+                row.appendChild(bubble);
+            }
+            chatMessages.appendChild(row);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function appendTyping() {
+            const typing = document.createElement('div');
+            typing.className = 'typing';
+            typing.id = 'typingIndicator';
+            typing.innerText = 'Kushal is typing...';
+            chatMessages.appendChild(typing);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function removeTyping() {
+            const typing = document.getElementById('typingIndicator');
+            if (typing) typing.remove();
+        }
+
+        function sendMessage() {
+            const message = userInput.value.trim();
+            if (!message) return;
+            createMsgRow(message, 'user');
+            userInput.value = '';
+            appendTyping();
+            fetch('/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message })
+            })
+            .then((response) => response.json())
+            .then((data) => {
+                removeTyping();
+                createMsgRow(data.reply, 'bot');
+            })
+            .catch(() => {
+                removeTyping();
+                createMsgRow('Sorry, there was a connection error.', 'bot');
+            });
+        }
+
+        sendBtn.addEventListener('click', sendMessage);
+        userInput.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') sendMessage();
+        });
+
+        window.onload = () => {
+            userInput.focus();
+            createMsgRow("Hello! 👋 I'm Kushal, your AI assistant. How can I help you today?", 'bot');
+        };
+    </script>
+</body>
+</html>

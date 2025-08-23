@@ -1,0 +1,182 @@
+from flask import Flask, request, jsonify, send_from_directory
+import os
+from nltk.chat.util import Chat, reflections
+
+pairs = [
+    # Greetings
+    (r".*\b(hi|hello|hey|good morning|good afternoon|good evening)\b.*", [
+        "Hello! Welcome to Kushal Support AI. How can I help you today?",
+        "Hi there! How can I assist you?",
+        "Hey! What can I do for you?"
+    ]),
+    # Thanks
+    (r".*\b(thank you|thanks|thankyou|thx|thank u)\b.*", [
+        "You're very welcome! If you have any more questions, feel free to ask.",
+        "Happy to help! Let me know if there’s anything else.",
+        "Anytime! Is there anything else I can assist you with?"
+    ]),
+    # How to track my package/order
+    (r".*\b(track|tracking|where.*track|how.*track|track.*package|track.*order|package status|where is my order|order tracking)\b.*", [
+        "You can track your package using the tracking number in your order confirmation email. Visit our 'Track My Order' page, or contact support with your order ID."
+    ]),
+    # Connect to customer support
+    (r".*\b(contact|reach|get in touch|connect|talk|speak|call).*(customer|support|agent|team|human)\b.*", [
+        "You can reach our customer support by emailing help.kushal.support@gmail.com or calling +91-98765-43210. We’re here Mon–Sat, 9:00 AM to 8:00 PM IST."
+    ]),
+    # Gift ideas / gift suggestions
+    (r".*\b(gift ideas?|suggest gift|present ideas?|need.*gift|what.*gift)\b.*", [
+        "Popular gift ideas: personalized mugs, custom t-shirts, scented candles, tote bags, Bluetooth speakers, chocolate boxes. Tell me who it's for or an occasion, and I can suggest more!"
+    ]),
+    (r".*\bgift details|gift options\b.*", [
+        "We can wrap your gift and add a personalized message. Gift wrapping is available at checkout for ₹50. Let us know your needs!"
+    ]),
+    # Promo codes / discount codes
+    (r".*\b(promo code|promocode|discount code|coupon|offer code|give me (some )?promo code(s)?)\b.*", [
+        "Here are some promo codes you can try:\n- KUSHAL2025\n- SAVE10NOW\n- GIFT4YOU\n- WELCOME23\n(These are sample codes and may not work in checkout.)"
+    ]),
+    # Order modification: cancel, add, change address
+    (r".*\b(cancel|stop).*(order)\b.*", [
+        "You can cancel your order in 'My Orders' if it hasn't shipped, or contact us with your order number for help."
+    ]),
+    (r".*\b(change|update|edit).*(address)\b.*", [
+        "If your order hasn't shipped, you can change your delivery address from your account or by contacting support."
+    ]),
+    (r".*\b(add).*(item).*(order)\b.*", [
+        "If your order hasn't shipped, you may add an item by placing a new order and letting us know—you may be able to merge them."
+    ]),
+    # Order issues: delayed, wrong, damaged, missing
+    (r".*\b(order|package).*(delayed|late|not arrived|delay)\b.*", [
+        "Delays can happen due to high demand or courier issues. We'll check on your order if you provide your order ID."
+    ]),
+    (r".*\b(received|got).*(wrong|incorrect).*(item|order|product)\b.*", [
+        "Sorry for the mistake! Please send details and a photo—we’ll fix this quickly."
+    ]),
+    (r".*\b(received|got|arrived).*(damaged|broken|defective)\b.*", [
+        "We're sorry your order arrived damaged. Please send us a photo and your order number; we'll arrange a replacement or refund."
+    ]),
+    (r".*\b(missing|did not get|not received).*(order|package|item)\b.*", [
+        "If your item is missing, please check with others at your address and contact us with your order info for help."
+    ]),
+    # Refunds and returns
+    (r".*\b(how|where|start|get|initiat).*(return)\b.*", [
+        "You can start a return from 'My Orders' or by contacting support. Most returns are accepted within 30 days."
+    ]),
+    (r".*\bwhen.*refund\b.*", [
+        "Refunds are processed 3–5 business days after your return is received."
+    ]),
+    (r".*\b(return).*(sale|discount).*(item|order)\b.*", [
+        "Sale items are usually returnable. Please check the product page or ask us for confirmation."
+    ]),
+    (r".*\b(exchange).*(product|item|order)\b.*", [
+        "To exchange, start a return and place a new order, or contact us for guidance."
+    ]),
+    (r".*\b(store credit)\b.*", [
+        "Yes, you can opt for store credit on returns. Please mention your choice when arranging your return."
+    ]),
+    (r".*\b(fee for returning|return charge)\b.*", [
+        "Returns are free; original shipping fees may not be refunded."
+    ]),
+    # Payment issues
+    (r".*\b(payment|pay).*(declined|failed|error)\b.*", [
+        "Make sure your card details are correct and funds are available. Try another payment method or contact your bank if issues persist."
+    ]),
+    (r".*\b(split payment|pay with two cards|multiple payments)\b.*", [
+        "Currently, only one payment method per order is supported. For special requests, contact support."
+    ]),
+    (r".*\b(use|apply) (gift card)\b.*", [
+        "You can enter your gift card number at checkout to use your balance."
+    ]),
+    # Shipping and delivery
+    (r".*\b(shipping rates?|cost|charges?|fee).*(location|to|for)\b.*", [
+        "Shipping fees vary by location and order value. Standard shipping is ₹50–₹150 for most locations."
+    ]),
+    (r".*\b(standard shipping|how long.*shipping|delivery time|when.*receive)\b.*", [
+        "Standard shipping: 3–5 business days. Expedited options are available at checkout."
+    ]),
+    (r".*\b(what courier|which courier|delivery partner)\b.*", [
+        "We use trusted courier partners such as Bluedart, Delhivery, and India Post."
+    ]),
+    # Product info
+    (r".*\b(how to use|care for|instructions).*(product|item|order)\b.*", [
+        "Care and use instructions are on every product page. You can ask for help anytime!"
+    ]),
+    (r".*\b(available in|have other|colors?|sizes?)\b.*", [
+        "Products are available in various colors and sizes—see the product page for options or ask us!"
+    ]),
+    (r".*\b(eco-friendly|organic|recyclable|sustainable)\b.*", [
+        "Many of our products are eco-friendly and made with sustainable materials. Details are on each product page."
+    ]),
+    (r".*\b(warranty|guarantee)\b.*", [
+        "Most products have a 1-year warranty. Details are listed on the product page."
+    ]),
+    (r".*\b(pre-order)\b.*", [
+        "Some products can be pre-ordered—look for the 'Pre-Order' label or let us know what you’re interested in."
+    ]),
+    (r".*\b(stack|combine).*(discounts?|promo)\b.*", [
+        "Only one discount code can be applied per order. Choose the one that gives the best deal!"
+    ]),
+    # Account management
+    (r".*\b(reset|forgot|change).*password\b.*", [
+        "Click 'Forgot Password' on the login page or update it in account settings."
+    ]),
+    (r".*\b(change|update).*(email|contact number|address)\b.*", [
+        "Go to Account settings to update your information, or contact support if you’re having trouble."
+    ]),
+    (r".*\b(delete|remove).*account\b.*", [
+        "Please email support@yourcompany.com to request account deletion. We're sorry to see you go!"
+    ]),
+    # Company and policy info
+    (r".*\b(where (are|is).*located|your (address|location))\b.*", [
+        "Our main office is based in Mumbai, India. We serve customers nationwide!"
+    ]),
+    (r".*\b(business hours|timings|open|close)\b.*", [
+        "We’re available Monday–Saturday, 9:00 AM to 8:00 PM IST."
+    ]),
+    (r".*\b(privacy policy|data protection|GDPR)\b.*", [
+        "We value your privacy. Read our full policy at privacy.yourcompany.com."
+    ]),
+    # Feedback and review
+    (r".*\b(leave|write|send).*review\b.*", [
+        "You can leave a review on any product page, or share feedback via our support email. Thank you!"
+    ]),
+    (r".*\b(new feature|suggestion|feedback)\b.*", [
+        "We love suggestions! Please email ideas to feedback.kushal@gmail.com or use our suggestions form online."
+    ]),
+    # Fun & personality
+    (r".*\b(joke|make me laugh)\b.*", [
+        "Why did the computer go to the doctor? Because it had a virus! 😄"
+    ]),
+    (r".*\b(motivate|motivation|inspire)\b.*", [
+        "You are amazing! Every day is a new chance to succeed. Keep up the great work! 💪"
+    ]),
+    (r".*\bfavorite product\b.*", [
+        "I love our custom mugs and Bluetooth speakers—they’re both practical and make great gifts!"
+    ]),
+    # Escalation—when user expresses frustration
+    (r".*\b(frustrated|angry|not happy|bad (service|experience))\b.*", [
+        "I’m really sorry to hear that. Would you like to be connected with a senior support agent for personal assistance?"
+    ]),
+    # Fallback catch-all
+    (r'(.*)', [
+        "I'm here to help! Could you please rephrase or provide more details about your question?",
+        "Sorry, I didn’t get that! Can you clarify or ask in a different way?"
+    ])
+]
+
+chatbot = Chat(pairs, reflections)
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return send_from_directory(os.getcwd(), 'index.html')
+
+@app.route('/chat', methods=['POST'])
+def chat():
+    data = request.json
+    user_message = data.get('message', '').lower().strip()
+    response = chatbot.respond(user_message)
+    return jsonify({'reply': response})
+
+if __name__ == "__main__":
+    app.run(debug=True)
